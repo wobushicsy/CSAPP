@@ -293,7 +293,28 @@ int howManyBits(int x) {
  *   Rating: 4
  */
 unsigned floatScale2(unsigned uf) {
-  return 2;
+  unsigned frac = uf & 0x007fffff;
+  unsigned exp = uf & 0x7f800000;
+  unsigned flag = uf & 0x80000000;
+  unsigned ans;
+  if (exp == 0x7f800000) {
+    return uf;
+  }   // NaN cases
+  if ((exp != 0) && (exp != 0x7f800000)) {
+    exp = exp + 0x00800000;
+    if(flag) {
+      exp = exp | 0x80000000;
+    } else {
+      exp = exp & 0x7fffffff;
+    }
+    ans = exp | frac;
+  } else {
+    frac = frac << 1;
+    ans = flag | frac;
+  }
+
+
+  return ans;
 }
 /* 
  * floatFloat2Int - Return bit-level equivalent of expression (int) f
@@ -308,7 +329,38 @@ unsigned floatScale2(unsigned uf) {
  *   Rating: 4
  */
 int floatFloat2Int(unsigned uf) {
-  return 2;
+  unsigned frac = uf & 0x007fffff;
+  unsigned exp = uf & 0x7f800000;
+  unsigned flag = uf & 0x80000000;
+  int E;
+  int ans;
+  if (exp == 0x7f800000) {
+    return 0x80000000u;
+  }
+  // frac = M, so we add frac 0x0080_0000, so that we get 1.M
+  if (exp)
+    frac = frac + 0x00800000;
+  exp = exp >> 23;
+  E = exp ? exp - 127 : 1 - 127;
+  if (E >= 0) {
+    if(E <= 23)
+      ans = frac >> (23 - E);
+    else {
+      ans = frac << (E - 23);
+      if (ans == 0 || (E - 23) / 32) {
+        // consider if E overflow to 0 or (E - 23) greater than 32, then we say we
+        // encounter an overflow
+        ans = 0x80000000;
+      }
+    }
+  } else {
+    ans = 0;
+  }
+  if (flag) {
+    ans = -ans;
+  }
+
+  return ans;
 }
 /* 
  * floatPower2 - Return bit-level equivalent of the expression 2.0^x
@@ -324,5 +376,21 @@ int floatFloat2Int(unsigned uf) {
  *   Rating: 4
  */
 unsigned floatPower2(int x) {
-    return 2;
+  unsigned flag = 0x00000000;
+  int exp;
+  unsigned frac;
+  exp = x + 127;
+  if (exp < -22) {
+    return 0;
+  }else if (exp <= 0) {
+    frac = 1 << (22 + exp);
+    exp = 0;
+    return flag | exp | frac;
+  } else if (exp <= 254) {
+    frac = 0;
+    exp = exp << 23;
+    return flag | exp | frac;
+  } else
+    return 0x7f800000;
+
 }
